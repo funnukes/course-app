@@ -16,18 +16,22 @@ try:
         st.error("Error: Neither 'Course Name' nor 'Course' column found in the CSV. Please ensure your CSV has a 'Course Name' column.")
         st.stop()
     
-    # 1. Drop rows where 'Code' or 'Course' is entirely missing (NaN)
-    # This prevents 'nan (code:nan)' issues and helps with duplicate keys.
-    df.dropna(subset=['Code', 'Course'], inplace=True)
+    # 1. Drop rows where 'Course' is entirely missing (NaN)
+    df.dropna(subset=['Course'], inplace=True)
 
-    # 2. Convert 'Code' to string and strip any whitespace
-    df['Code'] = df['Code'].astype(str).str.strip()
+    # 2. Clean and standardize 'Code' column:
+    #    a. Convert to numeric, coercing errors to NaN (e.g., "abc" -> NaN)
+    #    b. Drop rows where 'Code' couldn't be converted to a number (NaNs)
+    #    c. Convert to integer (removes the .0, e.g., 34.0 -> 34)
+    #    d. Convert to string (e.g., 34 -> "34") and strip any whitespace
+    df['Code'] = pd.to_numeric(df['Code'], errors='coerce')
+    df.dropna(subset=['Code'], inplace=True) # Drop rows where Code is NaN after numeric conversion
+    df['Code'] = df['Code'].astype(int).astype(str).str.strip() 
 
-    # 3. Filter out rows where 'Code' explicitly became the string 'nan' after conversion
-    # or if it's empty after stripping.
+    # Filter out rows where 'Code' explicitly became the string 'nan' (already covered by dropna)
     df = df[df['Code'].str.lower() != 'nan']
     df = df[df['Code'] != ''] # Also filter out genuinely empty strings if any exist
-
+    
     # The 'Incompatibilities' column often contains comma-separated values.
     # We ensure it's treated as string and then split it into a list of individual codes.
     df['Incompatibilities'] = df['Incompatibilities'].fillna('').astype(str)
@@ -37,7 +41,6 @@ try:
     df['Decision'] = 'No' # Default decision for each course
 
     # Optional: Print info to console for debugging if needed (won't show in Streamlit app directly)
-    # This helps verify the DataFrame structure in your terminal where you run Streamlit.
     print("DataFrame head after loading and cleaning:")
     print(df.head())
     print("\nDataFrame info after loading and cleaning:")
@@ -70,6 +73,7 @@ selected_codes = [
 ]
 
 # --- Debugging Info (for you to copy) ---
+# You can remove this section once the app is working as expected.
 st.subheader("--- DEBUGGING INFO ---")
 st.write("1. Selected Courses (Codes):", selected_codes)
 
@@ -94,7 +98,7 @@ if len(selected_codes) >= 5:
 # Show the course table
 st.markdown("### 📋 Course List")
 for idx, row in df.iterrows():
-    code = str(row['Code'])
+    code = str(row['Code']) # This `str()` conversion here is redundant if Code is already string, but harmless.
     name = row['Course']
     is_selected = st.session_state.selections.get(code) == 'Yes'
     is_disabled = False
