@@ -5,7 +5,6 @@ import os
 # --- Load Data from CSV File ---
 # IMPORTANT: Uses semicolon (';') as delimiter and skips 6 rows before the header.
 try:
-    # Adding skiprows=6 based on file metadata that indicates 6 rows above the header
     df = pd.read_csv('All_Courses.csv', sep=';', skiprows=6) 
     
     # --- Data Cleaning and Preparation ---
@@ -25,12 +24,11 @@ try:
     #    c. Convert to integer (removes the .0, e.g., 34.0 -> 34)
     #    d. Convert to string (e.g., 34 -> "34") and strip any whitespace
     df['Code'] = pd.to_numeric(df['Code'], errors='coerce')
-    df.dropna(subset=['Code'], inplace=True) # Drop rows where Code is NaN after numeric conversion
+    df.dropna(subset=['Code'], inplace=True) 
     df['Code'] = df['Code'].astype(int).astype(str).str.strip() 
 
-    # Filter out rows where 'Code' explicitly became the string 'nan' (already covered by dropna)
     df = df[df['Code'].str.lower() != 'nan']
-    df = df[df['Code'] != ''] # Also filter out genuinely empty strings if any exist
+    df = df[df['Code'] != ''] 
     
     # The 'Incompatibilities' column often contains comma-separated values.
     # We ensure it's treated as string and then split it into a list of individual codes.
@@ -50,7 +48,6 @@ except FileNotFoundError:
     st.error("Error: 'All_Courses.csv' not found. Please ensure the file is named 'All_Courses.csv' and is in the same directory as this script.")
     st.stop()
 except KeyError as e:
-    # Specifically catch KeyError for missing columns
     st.error(f"Error loading CSV file: Column '{e}' not found after loading. Please check your CSV header and ensure it contains 'Code' and 'Course Name' (or 'Course').")
     st.stop()
 except Exception as e:
@@ -72,24 +69,13 @@ selected_codes = [
     code for code, decision in st.session_state.selections.items() if decision == 'Yes'
 ]
 
-# --- Debugging Info (for you to copy) ---
-# You can remove this section once the app is working as expected.
-st.subheader("--- DEBUGGING INFO ---")
-st.write("1. Selected Courses (Codes):", selected_codes)
-
 # Find all incompatible course codes based on current selections
 incompatible_all = set()
 for code in selected_codes:
     course_row = df[df['Code'] == code]
     if not course_row.empty:
         incompat_list_for_selected = course_row.iloc[0]['Incompatible_List']
-        st.write(f"2. Incompatibilities for selected course '{code}':", incompat_list_for_selected)
         incompatible_all.update(incompat_list_for_selected)
-
-st.write("3. All Incompatible Codes (incompatible_all set):", incompatible_all)
-st.subheader("--------------------")
-# --- End Debugging Info ---
-
 
 # Display a warning if the course selection limit is reached
 if len(selected_codes) >= 5:
@@ -98,7 +84,7 @@ if len(selected_codes) >= 5:
 # Show the course table
 st.markdown("### 📋 Course List")
 for idx, row in df.iterrows():
-    code = str(row['Code']) # This `str()` conversion here is redundant if Code is already string, but harmless.
+    code = str(row['Code'])
     name = row['Course']
     is_selected = st.session_state.selections.get(code) == 'Yes'
     is_disabled = False
@@ -116,7 +102,8 @@ for idx, row in df.iterrows():
     # Create two columns for each course entry: one for course details, one for the selectbox
     col1, col2 = st.columns([4, 1])
     with col1:
-        st.markdown(f"**{name}** (Code: `{code}`)")
+        # Changed from st.markdown to st.write for potentially tighter alignment
+        col1.write(f"**{name}** (Code: `{code}`)")
     with col2:
         option = st.selectbox(
             label="", # Label is empty as the name is in col1
