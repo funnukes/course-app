@@ -5,7 +5,7 @@ import os
 # --- Load Data from CSV File ---
 # Assuming 'All_Courses.csv' is in the same directory as this script (main.py).
 try:
-    df = pd.read_csv('All_Courses.csv', sep=';') # Changed filename here
+    df = pd.read_csv('All_Courses.csv', sep=';', skiprows=6) # Changed filename here
     # Ensure 'Code' column is treated as strings for consistency with comparisons later
     df['Code'] = df['Code'].astype(str)
 except FileNotFoundError:
