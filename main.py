@@ -84,7 +84,7 @@ if len(selected_codes) >= 5:
 # Show the course table
 st.markdown("### 📋 Course List")
 for idx, row in df.iterrows():
-    code = str(row['Code'])
+    code = str(row['Code']) 
     name = row['Course']
     is_selected = st.session_state.selections.get(code) == 'Yes'
     is_disabled = False
@@ -102,18 +102,19 @@ for idx, row in df.iterrows():
     # Create two columns for each course entry: one for course details, one for the selectbox
     col1, col2 = st.columns([4, 1])
     with col1:
-        # Changed from st.markdown to st.write for potentially tighter alignment
+        # Added a small empty write to push the course name slightly down for better alignment
+        col1.write("") 
         col1.write(f"**{name}** (Code: `{code}`)")
     with col2:
         option = st.selectbox(
-            label="", # Label is empty as the name is in col1
+            label="", 
             options=["No", "Yes"],
-            index=1 if is_selected else 0, # Set default based on session state
-            key=f"decision_{code}", # Unique key for each selectbox (important for Streamlit)
-            disabled=is_disabled, # Disable based on logic
-            help=reason # Tooltip for disabled options
+            index=1 if is_selected else 0, 
+            key=f"decision_{code}", 
+            disabled=is_disabled, 
+            help=reason 
         )
-        st.session_state.selections[code] = option # Update session state with user's selection
+        st.session_state.selections[code] = option 
 
 # Final course selection summary
 final_selected_codes = [c for c, v in st.session_state.selections.items() if v == 'Yes']
@@ -132,14 +133,11 @@ st.markdown("### 🚫 Incompatible Courses:")
 if final_selected_codes:
     incompatible_names = set()
     for code in final_selected_codes:
-        row = df[df['Code'] == code].iloc[0] # Get the row for the selected course
+        row = df[df['Code'] == code].iloc[0] 
         incompatible_codes = row['Incompatible_List']
         for inc in incompatible_codes:
-            # Only list incompatibilities that are NOT among the currently selected courses
-            # And ensure the incompatible code exists in the DataFrame's 'Code' column
-            course_name_series = df[df['Code'] == inc]['Course']
-            if not course_name_series.empty and inc not in final_selected_codes:
-                incompatible_names.add(course_name_series.iloc[0])
+            if not df[df['Code'] == inc]['Course'].empty and inc not in final_selected_codes:
+                incompatible_names.add(df[df['Code'] == inc]['Course'].iloc[0])
 
     if incompatible_names:
         st.error("The following courses are **not compatible** with your current selection:")
