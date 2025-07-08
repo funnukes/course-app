@@ -83,7 +83,6 @@ for idx, row in df.iterrows():
 
     col1, col2 = st.columns([4, 1])
     with col1:
-        # Added two empty writes to push the course name down further for better alignment
         col1.write("") 
         col1.write("") 
         col1.write(f"**{name}** (Code: `{code}`)")
@@ -97,6 +96,10 @@ for idx, row in df.iterrows():
             help=reason 
         )
         st.session_state.selections[code] = option 
+    
+    # Add a horizontal white line after each course entry
+    st.markdown("---")
+
 
 final_selected_codes = [c for c, v in st.session_state.selections.items() if v == 'Yes']
 final_selected_names = [df[df['Code'] == c].iloc[0]['Course'] for c in final_selected_codes]
