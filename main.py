@@ -3,26 +3,17 @@ import pandas as pd
 import os
 
 # --- Load Data from CSV File ---
-# IMPORTANT: Uses semicolon (';') as delimiter and skips 6 rows before the header.
 try:
     df = pd.read_csv('All_Courses.csv', sep=';', skiprows=6) 
     
     # --- Data Cleaning and Preparation ---
-    # Rename 'Course Name' to 'Course' for consistency with the rest of the app logic
     if 'Course Name' in df.columns:
         df.rename(columns={'Course Name': 'Course'}, inplace=True)
     elif 'Course' not in df.columns:
         st.error("Error: Neither 'Course Name' nor 'Course' column found in the CSV. Please ensure your CSV has a 'Course Name' column.")
         st.stop()
     
-    # 1. Drop rows where 'Course' is entirely missing (NaN)
     df.dropna(subset=['Course'], inplace=True)
-
-    # 2. Clean and standardize 'Code' column:
-    #    a. Convert to numeric, coercing errors to NaN (e.g., "abc" -> NaN)
-    #    b. Drop rows where 'Code' couldn't be converted to a number (NaNs)
-    #    c. Convert to integer (removes the .0, e.g., 34.0 -> 34)
-    #    d. Convert to string (e.g., 34 -> "34") and strip any whitespace
     df['Code'] = pd.to_numeric(df['Code'], errors='coerce')
     df.dropna(subset=['Code'], inplace=True) 
     df['Code'] = df['Code'].astype(int).astype(str).str.strip() 
@@ -30,15 +21,12 @@ try:
     df = df[df['Code'].str.lower() != 'nan']
     df = df[df['Code'] != ''] 
     
-    # The 'Incompatibilities' column often contains comma-separated values.
-    # We ensure it's treated as string and then split it into a list of individual codes.
     df['Incompatibilities'] = df['Incompatibilities'].fillna('').astype(str)
     df['Incompatible_List'] = df['Incompatibilities'].apply(
         lambda x: [i.strip() for i in x.split(',') if i.strip() and i.strip() != '200F']
     )
-    df['Decision'] = 'No' # Default decision for each course
+    df['Decision'] = 'No' 
 
-    # Optional: Print info to console for debugging if needed (won't show in Streamlit app directly)
     print("DataFrame head after loading and cleaning:")
     print(df.head())
     print("\nDataFrame info after loading and cleaning:")
@@ -60,16 +48,13 @@ st.set_page_config(layout="wide")
 st.title("🎓 Interactive Course Selection Tool")
 st.markdown("Choose up to **5 courses**. Incompatible options will be grayed out but still visible below.")
 
-# Track session state to persist selections across reruns
 if 'selections' not in st.session_state:
     st.session_state.selections = {}
 
-# Get currently selected course codes
 selected_codes = [
     code for code, decision in st.session_state.selections.items() if decision == 'Yes'
 ]
 
-# Find all incompatible course codes based on current selections
 incompatible_all = set()
 for code in selected_codes:
     course_row = df[df['Code'] == code]
@@ -77,11 +62,9 @@ for code in selected_codes:
         incompat_list_for_selected = course_row.iloc[0]['Incompatible_List']
         incompatible_all.update(incompat_list_for_selected)
 
-# Display a warning if the course selection limit is reached
 if len(selected_codes) >= 5:
     st.warning("⚠️ You have selected 5 courses. Deselect one to add others.")
 
-# Show the course table
 st.markdown("### 📋 Course List")
 for idx, row in df.iterrows():
     code = str(row['Code']) 
@@ -90,7 +73,6 @@ for idx, row in df.iterrows():
     is_disabled = False
     reason = ""
 
-    # Logic to disable (grey out) incompatible or limit-reached courses
     if code in incompatible_all and not is_selected:
         is_disabled = True
         reason = "❌ Incompatible with selected courses"
@@ -99,10 +81,10 @@ for idx, row in df.iterrows():
         is_disabled = True
         reason = "⚠️ Limit reached"
 
-    # Create two columns for each course entry: one for course details, one for the selectbox
     col1, col2 = st.columns([4, 1])
     with col1:
-        # Added a small empty write to push the course name slightly down for better alignment
+        # Added two empty writes to push the course name down further for better alignment
+        col1.write("") 
         col1.write("") 
         col1.write(f"**{name}** (Code: `{code}`)")
     with col2:
@@ -116,7 +98,6 @@ for idx, row in df.iterrows():
         )
         st.session_state.selections[code] = option 
 
-# Final course selection summary
 final_selected_codes = [c for c, v in st.session_state.selections.items() if v == 'Yes']
 final_selected_names = [df[df['Code'] == c].iloc[0]['Course'] for c in final_selected_codes]
 
@@ -128,7 +109,6 @@ if final_selected_names:
 else:
     st.write("No courses selected.")
 
-# Show incompatible courses in a message box (not the greying out)
 st.markdown("### 🚫 Incompatible Courses:")
 if final_selected_codes:
     incompatible_names = set()
@@ -148,7 +128,6 @@ if final_selected_codes:
 else:
     st.info("Select courses to see incompatibility information.")
 
-# Instructions for users
 st.markdown("---")
 st.markdown("### 📝 Instructions:")
 st.markdown("""
