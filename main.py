@@ -3,56 +3,85 @@ import pandas as pd
 import os
 
 # --- Load Data from CSV File ---
-# Assuming 'All_Courses.csv' is in the same directory as this script (main.py).
+# IMPORTANT: Use sep=';' and skiprows=6 to correctly load the header
 try:
-    df = pd.read_csv('All_Courses.csv', sep=';', skiprows=6) # Changed filename here
-    # Ensure 'Code' column is treated as strings for consistency with comparisons later
-    df['Code'] = df['Code'].astype(str)
+    # Adding skiprows=6 based on file metadata that indicates 6 rows above the header
+    df = pd.read_csv('All_Courses.csv', sep=';', skiprows=6) 
+    
+    # --- Data Cleaning and Preparation ---
+    # Rename 'Course Name' to 'Course' for consistency with the rest of the app logic
+    if 'Course Name' in df.columns:
+        df.rename(columns={'Course Name': 'Course'}, inplace=True)
+    elif 'Course' not in df.columns:
+        st.error("Error: Neither 'Course Name' nor 'Course' column found in the CSV. Please ensure your CSV has a 'Course Name' column.")
+        st.stop()
+    
+    # 1. Drop rows where 'Code' or 'Course' is entirely missing (NaN)
+    # This prevents 'nan (code:nan)' issues and helps with duplicate keys.
+    df.dropna(subset=['Code', 'Course'], inplace=True)
+
+    # 2. Convert 'Code' to string and strip any whitespace
+    df['Code'] = df['Code'].astype(str).str.strip()
+
+    # 3. Filter out rows where 'Code' explicitly became the string 'nan' after conversion
+    # or if it's empty after stripping.
+    df = df[df['Code'].str.lower() != 'nan']
+    df = df[df['Code'] != ''] # Also filter out genuinely empty strings if any exist
+
+    # Optional: If 'Code' must be purely numeric (e.g., '1', '2', but not '200F' in Code column itself)
+    # df = df[df['Code'].apply(lambda x: x.isdigit())]
+
+    # Ensure 'Incompatibilities' is string and handle the list parsing
+    df['Incompatibilities'] = df['Incompatibilities'].fillna('').astype(str)
+    df['Incompatible_List'] = df['Incompatibilities'].apply(
+        lambda x: [i.strip() for i in x.split(',') if i.strip() and i.strip() != '200F']
+    )
+    df['Decision'] = 'No' # Default decision for each course
+
+    # Optional: Print info to console for debugging if needed (won't show in Streamlit app)
+    print("DataFrame head after loading and cleaning:")
+    print(df.head())
+    print("\nDataFrame info after loading and cleaning:")
+    print(df.info())
+
 except FileNotFoundError:
-    st.error("Error: 'All_Courses.csv' not found. Please make sure the CSV file is in the same directory as the script.")
-    st.stop() # Stop the app if the file isn't found
+    st.error("Error: 'All_Courses.csv' not found. Please ensure the file is named 'All_Courses.csv' and is in the same directory as this script.")
+    st.stop()
+except KeyError as e:
+    # Specifically catch KeyError for missing columns
+    st.error(f"Error loading CSV file: Column '{e}' not found after loading. Please check your CSV header and ensure it contains 'Code' and 'Course Name' (or 'Course').")
+    st.stop()
 except Exception as e:
-    st.error(f"Error loading CSV file: {e}")
-    st.stop() # Stop the app if there's another error during loading
+    st.error(f"Error loading CSV file: {e}. This often means the file format or delimiter is incorrect. Please check your CSV file's content and maybe try opening it in a text editor to confirm structure and delimiter (semicolon).")
+    st.stop()
 
-# --- End of Data Loading ---
-
-# Prepare data (same as your original code, adapted for new column names if needed)
-# Ensure your CSV has 'Code', 'Course Name', 'Professor', 'Sessions', 'Incompatibilities'
-# We'll map 'Course Name' to 'Course' for compatibility with the rest of the code.
-df.rename(columns={'Course Name': 'Course'}, inplace=True)
-
-
-df['Incompatibilities'] = df['Incompatibilities'].fillna('').astype(str)
-df['Incompatible_List'] = df['Incompatibilities'].apply(
-    lambda x: [i.strip() for i in x.split(',') if i.strip() and i.strip() != '200F']
-)
-df['Decision'] = 'No'  # Default
+# --- Rest of your Streamlit app code (no changes needed below this point) ---
 
 st.set_page_config(layout="wide")
 st.title("🎓 Interactive Course Selection Tool")
 st.markdown("Choose up to **5 courses**. Incompatible options will be grayed out but still visible below.")
 
-# Track session state
+# Track session state to persist selections across reruns
 if 'selections' not in st.session_state:
     st.session_state.selections = {}
 
+# Get currently selected course codes
 selected_codes = [
     code for code, decision in st.session_state.selections.items() if decision == 'Yes'
 ]
 
-# Find all incompatible course codes
+# Determine all courses that are incompatible with any of the selected courses
 incompatible_all = set()
 for code in selected_codes:
     course_row = df[df['Code'] == code] # Compare string codes
     if not course_row.empty:
         incompatible_all.update(course_row.iloc[0]['Incompatible_List'])
 
-# Count limit warning
+# Display a warning if the course selection limit is reached
 if len(selected_codes) >= 5:
     st.warning("⚠️ You have selected 5 courses. Deselect one to add others.")
 
-# Show the course table
+# Display the course list with selection options
 st.markdown("### 📋 Course List")
 for idx, row in df.iterrows():
     code = str(row['Code'])
@@ -61,31 +90,34 @@ for idx, row in df.iterrows():
     is_disabled = False
     reason = ""
 
+    # Disable if incompatible with existing selections and not already selected
     if code in incompatible_all and not is_selected:
         is_disabled = True
         reason = "❌ Incompatible with selected courses"
 
+    # Disable if limit reached and not already selected
     if len(selected_codes) >= 5 and not is_selected:
         is_disabled = True
         reason = "⚠️ Limit reached"
 
+    # Create columns for layout: Course Name and Selectbox
     col1, col2 = st.columns([4, 1])
     with col1:
         st.markdown(f"**{name}** (Code: `{code}`)")
     with col2:
         option = st.selectbox(
-            label="",
+            label="", # Label is empty as the name is in col1
             options=["No", "Yes"],
-            index=1 if is_selected else 0,
-            key=f"decision_{code}",
-            disabled=is_disabled,
-            help=reason
+            index=1 if is_selected else 0, # Set default based on session state
+            key=f"decision_{code}", # Unique key for each selectbox
+            disabled=is_disabled, # Disable based on logic
+            help=reason # Tooltip for disabled options
         )
-        st.session_state.selections[code] = option
+        st.session_state.selections[code] = option # Update session state
 
-# Final course selection
+# Display final selected courses
 final_selected_codes = [c for c, v in st.session_state.selections.items() if v == 'Yes']
-final_selected_names = [df[df['Code'] == c].iloc[0]['Course'] for c in final_selected_codes] # Compare string codes
+final_selected_names = [df[df['Code'] == c].iloc[0]['Course'] for c in final_selected_codes]
 
 st.markdown("---")
 st.subheader("✅ Selected Courses:")
@@ -95,18 +127,19 @@ if final_selected_names:
 else:
     st.write("No courses selected.")
 
-# Show incompatible courses in a message box
+# Display incompatible courses
 st.markdown("### 🚫 Incompatible Courses:")
 if final_selected_codes:
     incompatible_names = set()
     for code in final_selected_codes:
-        row = df[df['Code'] == code].iloc[0] # Compare string codes
+        row = df[df['Code'] == code].iloc[0] # Get the row for the selected course
         incompatible_codes = row['Incompatible_List']
         for inc in incompatible_codes:
+            # Only list incompatibilities that are NOT among the currently selected courses
             if inc not in final_selected_codes:
-                course_name = df[df['Code'] == inc]['Course'].values # Compare string codes
-                if len(course_name) > 0:
-                    incompatible_names.add(course_name[0])
+                course_name_series = df[df['Code'] == inc]['Course']
+                if not course_name_series.empty:
+                    incompatible_names.add(course_name_series.iloc[0])
 
     if incompatible_names:
         st.error("The following courses are **not compatible** with your current selection:")
